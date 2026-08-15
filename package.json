@@ -1,0 +1,12 @@
+{
+  "name": "jansevak-whatsapp-bot",
+  "version": "1.0.0",
+  "description": "JanSevak WhatsApp Chatbot",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
