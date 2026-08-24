@@ -430,7 +430,7 @@ async function handleTextMessage(
   }
 
   // =================================================
-  // 🤖 GEMINI AI
+  // GEMINI AI
   // =================================================
 
   const aiReply =
@@ -448,7 +448,7 @@ async function handleTextMessage(
 }
 
 // =====================================================
-// 🤖 GEMINI AI FUNCTION - FIXED
+// GEMINI AI FUNCTION
 // =====================================================
 
 async function askGemini(
@@ -507,7 +507,7 @@ async function askGemini(
     }
 
     // -------------------------------------------------
-    // GET SCHEME DATA
+    // GET GOOGLE SHEET DATA
     // -------------------------------------------------
 
     let schemes = [];
@@ -546,7 +546,7 @@ Official Source: ${scheme.source}`
         .join("\n\n");
 
     // -------------------------------------------------
-    // AI PROMPT
+    // PROMPT
     // -------------------------------------------------
 
     const prompt = `
@@ -565,7 +565,7 @@ IMPORTANT RULES:
 3. Never invent a government scheme.
 4. Never invent an amount, eligibility rule or document requirement.
 5. For scheme questions, prefer the Google Sheet data provided below.
-6. If the provided data does not contain the answer, clearly say that the citizen should verify it from the official government department or portal.
+6. If the provided data does not contain the answer, clearly tell the citizen to verify it from the official government department or official portal.
 7. Do not present guesses as facts.
 8. If the user asks a normal general question, answer normally.
 9. Keep WhatsApp answers reasonably short.
@@ -589,14 +589,14 @@ ${question}
     );
 
     // -------------------------------------------------
-    // MODELS
+    // GEMINI MODELS
     // -------------------------------------------------
 
     const models = [
 
-      "gemini-2.5-flash",
+      "gemini-3.6-flash",
 
-      "gemini-2.5-flash-lite"
+      "gemini-3.5-flash-lite"
 
     ];
 
@@ -607,7 +607,7 @@ ${question}
     const maxRetries = 2;
 
     // -------------------------------------------------
-    // TRY EACH MODEL
+    // TRY MODELS
     // -------------------------------------------------
 
     for (
@@ -686,7 +686,7 @@ ${question}
           );
 
           // -------------------------------------------------
-          // TEMPORARY ERROR DETECTION
+          // TEMPORARY ERROR
           // -------------------------------------------------
 
           const temporaryError =
@@ -709,7 +709,7 @@ ${question}
             );
 
           // -------------------------------------------------
-          // RETRY
+          // RETRY TEMPORARY ERROR
           // -------------------------------------------------
 
           if (
@@ -733,7 +733,6 @@ ${question}
             );
 
             continue;
-
           }
 
           // -------------------------------------------------
@@ -749,21 +748,15 @@ ${question}
             );
 
             break;
-
           }
 
           // -------------------------------------------------
-          // API KEY / AUTH ERROR
+          // AUTH ERROR
           // -------------------------------------------------
 
           if (
             status === 401 ||
-            status === 403 ||
-            errorMessage
-              .toLowerCase()
-              .includes(
-                "api key"
-              )
+            status === 403
           ) {
 
             console.error(
@@ -778,6 +771,21 @@ ${question}
           }
 
           // -------------------------------------------------
+          // MODEL NOT FOUND
+          // -------------------------------------------------
+
+          if (
+            status === 404
+          ) {
+
+            console.error(
+              `Model ${model} is not available. Trying next model...`
+            );
+
+            break;
+          }
+
+          // -------------------------------------------------
           // OTHER ERROR
           // -------------------------------------------------
 
@@ -787,11 +795,8 @@ ${question}
           );
 
           break;
-
         }
-
       }
-
     }
 
     // -------------------------------------------------
