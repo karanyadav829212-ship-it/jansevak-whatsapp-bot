@@ -1,13 +1,13 @@
 {
   "name": "jansevak-whatsapp-bot",
   "version": "1.0.0",
-  "description": "JanSevak WhatsApp Chatbot",
+  "description": "JanSevak WhatsApp AI Bot",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "@google/genai": "^1.17.0",
+    "@google/genai": "^1.13.0",
     "express": "^4.21.2"
   }
 }
