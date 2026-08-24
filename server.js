@@ -448,7 +448,7 @@ async function handleTextMessage(
 }
 
 // =====================================================
-// 🤖 GEMINI AI FUNCTION
+// 🤖 GEMINI AI FUNCTION - FIXED
 // =====================================================
 
 async function askGemini(
@@ -458,15 +458,27 @@ async function askGemini(
 
   try {
 
+    // -------------------------------------------------
+    // CHECK API KEY
+    // -------------------------------------------------
+
     if (!ai) {
 
-      throw new Error(
+      console.error(
         "GEMINI_API_KEY is missing"
+      );
+
+      return getText(
+        from,
+        "aiUnavailable"
       );
 
     }
 
-    // Get user's language
+    // -------------------------------------------------
+    // USER LANGUAGE
+    // -------------------------------------------------
+
     const language =
       users[from]?.language ||
       "hinglish";
@@ -495,11 +507,30 @@ async function askGemini(
     }
 
     // -------------------------------------------------
-    // Get scheme data from Google Sheet
+    // GET SCHEME DATA
     // -------------------------------------------------
 
-    const schemes =
-      await getSchemes();
+    let schemes = [];
+
+    try {
+
+      schemes =
+        await getSchemes();
+
+    } catch (sheetError) {
+
+      console.error(
+        "Google Sheet error:",
+        sheetError
+      );
+
+      schemes = [];
+
+    }
+
+    // -------------------------------------------------
+    // SCHEME CONTEXT
+    // -------------------------------------------------
 
     const schemeContext =
       schemes
@@ -534,16 +565,18 @@ IMPORTANT RULES:
 3. Never invent a government scheme.
 4. Never invent an amount, eligibility rule or document requirement.
 5. For scheme questions, prefer the Google Sheet data provided below.
-6. If the provided data does not contain the answer, clearly say that the citizen should verify it from the official government department/portal.
+6. If the provided data does not contain the answer, clearly say that the citizen should verify it from the official government department or portal.
 7. Do not present guesses as facts.
 8. If the user asks a normal general question, answer normally.
 9. Keep WhatsApp answers reasonably short.
 10. Use emojis when useful.
 11. Follow the user's selected language.
+12. Be helpful and respectful.
+13. If the user only says hello or hi, respond naturally and briefly.
 
 AVAILABLE JANSEVAK SCHEME DATA:
 
-${schemeContext}
+${schemeContext || "No scheme data is currently available."}
 
 USER QUESTION:
 
@@ -556,45 +589,228 @@ ${question}
     );
 
     // -------------------------------------------------
-    // GEMINI REQUEST
+    // MODELS
     // -------------------------------------------------
 
-    const response =
-      await ai.models.generateContent({
+    const models = [
 
-        model:
-          "gemini-3.7-flash",
+      "gemini-2.5-flash",
 
-        contents:
-          prompt
+      "gemini-2.5-flash-lite"
 
-      });
+    ];
 
-    const answer =
-      response.text;
+    // -------------------------------------------------
+    // RETRY SETTINGS
+    // -------------------------------------------------
 
-    if (
-      !answer ||
-      !answer.trim()
+    const maxRetries = 2;
+
+    // -------------------------------------------------
+    // TRY EACH MODEL
+    // -------------------------------------------------
+
+    for (
+      const model of models
     ) {
 
-      throw new Error(
-        "Gemini returned empty response"
-      );
+      for (
+        let attempt = 1;
+        attempt <= maxRetries;
+        attempt++
+      ) {
+
+        try {
+
+          console.log(
+            `Gemini request: model=${model}, attempt=${attempt}`
+          );
+
+          const response =
+            await ai.models.generateContent({
+
+              model:
+                model,
+
+              contents:
+                prompt
+
+            });
+
+          const answer =
+            response?.text;
+
+          // -------------------------------------------------
+          // EMPTY RESPONSE
+          // -------------------------------------------------
+
+          if (
+            !answer ||
+            !answer.trim()
+          ) {
+
+            throw new Error(
+              "Gemini returned empty response"
+            );
+
+          }
+
+          console.log(
+            `Gemini response successful using ${model}`
+          );
+
+          console.log(
+            "Gemini response:",
+            answer
+          );
+
+          return answer.trim();
+
+        } catch (error) {
+
+          const errorMessage =
+            error?.message ||
+            String(error);
+
+          const status =
+            error?.status ||
+            error?.code ||
+            "";
+
+          console.error(
+            `Gemini error | model=${model} | attempt=${attempt} | status=${status}`
+          );
+
+          console.error(
+            errorMessage
+          );
+
+          // -------------------------------------------------
+          // TEMPORARY ERROR DETECTION
+          // -------------------------------------------------
+
+          const temporaryError =
+            status === 429 ||
+            status === 500 ||
+            status === 502 ||
+            status === 503 ||
+            status === 504 ||
+            errorMessage.includes(
+              "high demand"
+            ) ||
+            errorMessage.includes(
+              "UNAVAILABLE"
+            ) ||
+            errorMessage.includes(
+              "overloaded"
+            ) ||
+            errorMessage.includes(
+              "temporarily"
+            );
+
+          // -------------------------------------------------
+          // RETRY
+          // -------------------------------------------------
+
+          if (
+            temporaryError &&
+            attempt < maxRetries
+          ) {
+
+            const delay =
+              attempt * 2000;
+
+            console.log(
+              `Gemini temporarily unavailable. Retrying in ${delay}ms...`
+            );
+
+            await new Promise(
+              resolve =>
+                setTimeout(
+                  resolve,
+                  delay
+                )
+            );
+
+            continue;
+
+          }
+
+          // -------------------------------------------------
+          // TRY NEXT MODEL
+          // -------------------------------------------------
+
+          if (
+            temporaryError
+          ) {
+
+            console.log(
+              `Model ${model} unavailable. Trying next model...`
+            );
+
+            break;
+
+          }
+
+          // -------------------------------------------------
+          // API KEY / AUTH ERROR
+          // -------------------------------------------------
+
+          if (
+            status === 401 ||
+            status === 403 ||
+            errorMessage
+              .toLowerCase()
+              .includes(
+                "api key"
+              )
+          ) {
+
+            console.error(
+              "Gemini API key or permission problem."
+            );
+
+            return getText(
+              from,
+              "aiUnavailable"
+            );
+
+          }
+
+          // -------------------------------------------------
+          // OTHER ERROR
+          // -------------------------------------------------
+
+          console.error(
+            "Non-temporary Gemini error:",
+            error
+          );
+
+          break;
+
+        }
+
+      }
 
     }
 
-    console.log(
-      "Gemini response:",
-      answer
+    // -------------------------------------------------
+    // ALL MODELS FAILED
+    // -------------------------------------------------
+
+    console.error(
+      "All Gemini models failed."
     );
 
-    return answer.trim();
+    return getText(
+      from,
+      "aiUnavailable"
+    );
 
   } catch (error) {
 
     console.error(
-      "Gemini Error:",
+      "Gemini Function Error:",
       error
     );
 
@@ -602,6 +818,7 @@ ${question}
       from,
       "aiUnavailable"
     );
+
   }
 }
 
