@@ -98,22 +98,31 @@ app.post("/webhook", async (req, res) => {
         ?.messages?.[0];
 
     if (!message) {
-
       return res.sendStatus(200);
-
     }
 
     const from =
       message.from;
 
-    // Create session
+    // =================================================
+    // CREATE USER SESSION
+    // =================================================
+
     if (!users[from]) {
 
       users[from] = {
 
-        language: "hinglish",
+        language: null,
 
-        page: 0
+        page: 0,
+
+        mode: "language",
+
+        lastQuestion: "",
+
+        lastAnswer: "",
+
+        lastMessageTime: 0
 
       };
 
@@ -150,7 +159,10 @@ app.post("/webhook", async (req, res) => {
       const interactive =
         message.interactive;
 
-      // Button
+      // -----------------------------------------------
+      // REPLY BUTTON
+      // -----------------------------------------------
+
       if (
         interactive?.type ===
         "button_reply"
@@ -169,7 +181,10 @@ app.post("/webhook", async (req, res) => {
         return res.sendStatus(200);
       }
 
-      // List
+      // -----------------------------------------------
+      // LIST REPLY
+      // -----------------------------------------------
+
       if (
         interactive?.type ===
         "list_reply"
@@ -203,7 +218,455 @@ app.post("/webhook", async (req, res) => {
 });
 
 // =====================================================
-// TEXT HANDLER
+// PLACEHOLDER HANDLERS
+// =====================================================
+// Ye functions next parts mein complete honge.
+// Abhi inhe touch mat karna.
+
+async function handleTextMessage(
+  from,
+  text
+) {
+
+  console.log(
+    "Text received:",
+    from,
+    text
+  );
+
+}
+
+async function handleButton(
+  from,
+  buttonId
+) {
+
+  console.log(
+    "Button clicked:",
+    from,
+    buttonId
+  );
+
+}
+
+async function handleListSelection(
+  from,
+  listId
+) {
+
+  console.log(
+    "List selected:",
+    from,
+    listId
+  );
+
+}
+
+// =====================================================
+// START SERVER
+// =====================================================
+
+app.get(
+  "/health",
+  (req, res) => {
+
+    res.status(200).json({
+
+      status: "ok",
+
+      service:
+        "JanSevak WhatsApp Bot",
+
+      gemini:
+        GEMINI_API_KEY
+          ? "configured"
+          : "missing",
+
+      time:
+        new Date().toISOString()
+
+    });
+
+  }
+);
+
+// =====================================================
+// HOME
+// =====================================================
+
+app.get(
+  "/",
+  (req, res) => {
+
+    res.send(
+      "🇮🇳 JanSevak WhatsApp Bot is running!"
+    );
+
+  }
+);
+
+// =====================================================
+// START SERVER
+// =====================================================
+
+app.listen(
+  PORT,
+  () => {
+
+    console.log(
+      `JanSevak server running on port ${PORT}`
+    );
+
+    console.log(
+      `Gemini AI: ${
+        GEMINI_API_KEY
+          ? "Configured ✅"
+          : "Missing ❌"
+      }`
+    );
+
+  }
+);
+// =====================================================
+// PART 2
+// LANGUAGE + MAIN MENU SYSTEM
+// =====================================================
+
+// =====================================================
+// SET USER LANGUAGE
+// =====================================================
+
+function setLanguage(from, language) {
+
+  if (!users[from]) {
+
+    users[from] = {
+
+      language: language,
+
+      page: 0,
+
+      mode: "main",
+
+      lastQuestion: "",
+
+      lastAnswer: "",
+
+      lastMessageTime: 0
+
+    };
+
+  } else {
+
+    users[from].language =
+      language;
+
+    users[from].mode =
+      "main";
+
+  }
+
+}
+
+// =====================================================
+// GET USER LANGUAGE
+// =====================================================
+
+function getLanguage(from) {
+
+  return (
+    users[from]?.language ||
+    null
+  );
+
+}
+
+// =====================================================
+// LANGUAGE MENU
+// =====================================================
+
+async function sendLanguageMenu(to) {
+
+  await sendButtonMessage(
+    to,
+
+`👋 *Welcome to JanSevak!*
+
+🌐 Please select your language.
+
+1️⃣ English
+2️⃣ हिंदी
+3️⃣ Hinglish
+
+👇 Choose your language:`,
+    [
+      {
+        id: "language_english",
+        title: "🇬🇧 English"
+      },
+      {
+        id: "language_hindi",
+        title: "🇮🇳 हिंदी"
+      },
+      {
+        id: "language_hinglish",
+        title: "😎 Hinglish"
+      }
+    ]
+  );
+
+}
+
+// =====================================================
+// MAIN MENU
+// =====================================================
+
+async function sendMainMenu(to) {
+
+  const language =
+    users[to]?.language ||
+    "hinglish";
+
+  let message = "";
+
+  // ---------------------------------------------------
+  // HINDI
+  // ---------------------------------------------------
+
+  if (language === "hi") {
+
+    message =
+`👋 *जनसेवक में आपका स्वागत है!*
+
+मैं आपको सरकारी योजनाओं और आवेदन से जुड़ी जानकारी समझने में मदद कर सकता हूँ।
+
+👇 कृपया नीचे से एक विकल्प चुनें:`;
+
+  }
+
+  // ---------------------------------------------------
+  // ENGLISH
+  // ---------------------------------------------------
+
+  else if (language === "en") {
+
+    message =
+`👋 *Welcome to JanSevak!*
+
+I can help you understand government schemes, application processes and required documents.
+
+👇 Please choose an option below:`;
+
+  }
+
+  // ---------------------------------------------------
+  // HINGLISH
+  // ---------------------------------------------------
+
+  else {
+
+    message =
+`👋 *JanSevak mein aapka swagat hai!*
+
+Main aapko government schemes, application process aur required documents ke baare mein help kar sakta hoon.
+
+👇 Neeche se ek option choose karein:`;
+
+  }
+
+  // ===================================================
+  // FIVE MAIN OPTIONS
+  // ===================================================
+  //
+  // WhatsApp mein ek reply-button message mein
+  // maximum 3 buttons hote hain.
+  //
+  // Isliye yahan LIST MESSAGE use kiya jayega.
+  // ===================================================
+
+  await sendListMessage(
+    to,
+    message,
+
+    language === "hi"
+      ? "विकल्प चुनें"
+      : language === "en"
+      ? "Choose Option"
+      : "Option Choose Karein",
+
+    [
+
+      // -----------------------------------------------
+      // LANGUAGE
+      // -----------------------------------------------
+
+      {
+        id: "menu_language",
+
+        title:
+          language === "hi"
+            ? "🌐 भाषा"
+            : language === "en"
+            ? "🌐 Language"
+            : "🌐 Language",
+
+        description:
+          language === "hi"
+            ? "अपनी भाषा बदलें"
+            : language === "en"
+            ? "Change your language"
+            : "Apni language change karein"
+      },
+
+      // -----------------------------------------------
+      // AI HELP
+      // -----------------------------------------------
+
+      {
+        id: "menu_ai",
+
+        title:
+          language === "hi"
+            ? "🤖 AI सहायता"
+            : language === "en"
+            ? "🤖 AI Help"
+            : "🤖 AI Help",
+
+        description:
+          language === "hi"
+            ? "AI से सामान्य मदद लें"
+            : language === "en"
+            ? "Get friendly help from AI"
+            : "AI se friendly help lein"
+      },
+
+      // -----------------------------------------------
+      // SCHEMES
+      // -----------------------------------------------
+
+      {
+        id: "menu_schemes",
+
+        title:
+          language === "hi"
+            ? "📋 योजनाएँ"
+            : language === "en"
+            ? "📋 Schemes"
+            : "📋 Schemes",
+
+        description:
+          language === "hi"
+            ? "सरकारी योजनाओं की जानकारी"
+            : language === "en"
+            ? "Government scheme information"
+            : "Government schemes ki information"
+      },
+
+      // -----------------------------------------------
+      // APPLY GUIDE
+      // -----------------------------------------------
+
+      {
+        id: "menu_apply",
+
+        title:
+          language === "hi"
+            ? "📝 आवेदन गाइड"
+            : language === "en"
+            ? "📝 Apply Guide"
+            : "📝 Apply Guide",
+
+        description:
+          language === "hi"
+            ? "योजना के लिए आवेदन कैसे करें"
+            : language === "en"
+            ? "How to apply for a scheme"
+            : "Scheme ke liye apply kaise karein"
+      },
+
+      // -----------------------------------------------
+      // DOCUMENTS
+      // -----------------------------------------------
+
+      {
+        id: "menu_documents",
+
+        title:
+          language === "hi"
+            ? "📄 दस्तावेज़"
+            : language === "en"
+            ? "📄 Documents"
+            : "📄 Documents",
+
+        description:
+          language === "hi"
+            ? "योजना के लिए जरूरी दस्तावेज़"
+            : language === "en"
+            ? "Required documents for a scheme"
+            : "Scheme ke required documents"
+      }
+
+    ]
+  );
+
+}
+
+// =====================================================
+// WELCOME AFTER LANGUAGE SELECTION
+// =====================================================
+
+async function sendLanguageWelcome(to) {
+
+  const language =
+    users[to]?.language ||
+    "hinglish";
+
+  let message = "";
+
+  if (language === "hi") {
+
+    message =
+`🇮🇳 *जनसेवक में आपका स्वागत है!*
+
+आपने *हिंदी* भाषा चुनी है। ✅
+
+अब मैं आपको हिंदी में जानकारी और मार्गदर्शन दूँगा।`;
+
+  }
+
+  else if (language === "en") {
+
+    message =
+`🇮🇳 *Welcome to JanSevak!*
+
+You selected *English*. ✅
+
+I will now guide you in English.`;
+
+  }
+
+  else {
+
+    message =
+`🇮🇳 *JanSevak mein aapka swagat hai!*
+
+Aapne *Hinglish* select kiya hai. ✅
+
+Ab main aapko Hinglish mein guide karunga.`;
+
+  }
+
+  await sendTextMessage(
+    to,
+    message
+  );
+
+  await sendMainMenu(to);
+
+}
+
+// =====================================================
+// TEXT MESSAGE HANDLER
 // =====================================================
 
 async function handleTextMessage(
@@ -216,9 +679,33 @@ async function handleTextMessage(
       .trim()
       .toLowerCase();
 
-  // =================================================
-  // GREETING
-  // =================================================
+  // ===================================================
+  // USER SESSION CHECK
+  // ===================================================
+
+  if (!users[from]) {
+
+    users[from] = {
+
+      language: null,
+
+      page: 0,
+
+      mode: "language",
+
+      lastQuestion: "",
+
+      lastAnswer: "",
+
+      lastMessageTime: 0
+
+    };
+
+  }
+
+  // ===================================================
+  // FIRST GREETING
+  // ===================================================
 
   if (
     text === "hi" ||
@@ -229,16 +716,44 @@ async function handleTextMessage(
     text === "/start"
   ) {
 
-    await sendLanguageMenu(
-      from
-    );
+    // Reset language selection
+
+    users[from].language =
+      null;
+
+    users[from].mode =
+      "language";
+
+    users[from].lastQuestion =
+      "";
+
+    users[from].lastAnswer =
+      "";
+
+    await sendLanguageMenu(from);
 
     return;
+
   }
 
-  // =================================================
-  // LANGUAGE
-  // =================================================
+  // ===================================================
+  // LANGUAGE SELECTION BY TEXT
+  // ===================================================
+
+  if (
+    text === "english"
+  ) {
+
+    setLanguage(
+      from,
+      "en"
+    );
+
+    await sendLanguageWelcome(from);
+
+    return;
+
+  }
 
   if (
     text === "hindi" ||
@@ -250,27 +765,10 @@ async function handleTextMessage(
       "hi"
     );
 
-    await sendMainMenu(
-      from
-    );
+    await sendLanguageWelcome(from);
 
     return;
-  }
 
-  if (
-    text === "english"
-  ) {
-
-    setLanguage(
-      from,
-      "en"
-    );
-
-    await sendMainMenu(
-      from
-    );
-
-    return;
   }
 
   if (
@@ -282,191 +780,725 @@ async function handleTextMessage(
       "hinglish"
     );
 
-    await sendMainMenu(
-      from
-    );
+    await sendLanguageWelcome(from);
 
     return;
+
   }
 
-  // =================================================
-  // NEXT
-  // =================================================
+  // ===================================================
+  // IF LANGUAGE NOT SELECTED
+  // ===================================================
 
   if (
-    text === "next" ||
-    text === "अगला"
+    !users[from].language
   ) {
 
-    users[from].page++;
+    await sendLanguageMenu(from);
 
-    await sendSchemeList(
-      from
+    return;
+
+  }
+
+  // ===================================================
+  // THANK YOU / DONE
+  // ===================================================
+
+  if (
+    text === "thank you" ||
+    text === "thanks" ||
+    text === "thank u" ||
+    text === "thankyou" ||
+    text === "done" ||
+    text === "ok thanks" ||
+    text === "okay thanks"
+  ) {
+
+    const language =
+      users[from].language;
+
+    const reply =
+      language === "hi"
+        ? "🙏 आपका स्वागत है! 😊"
+        : language === "en"
+        ? "🙏 You're welcome! 😊"
+        : "🙏 You're welcome! 😊";
+
+    await sendTextMessage(
+      from,
+      reply
     );
 
     return;
+
   }
 
-  // =================================================
+  // ===================================================
+  // HOME / MENU
+  // ===================================================
+
+  if (
+    text === "home" ||
+    text === "menu" ||
+    text === "main menu" ||
+    text === "मुख्य मेनू" ||
+    text === "मेनू"
+  ) {
+
+    users[from].mode =
+      "main";
+
+    await sendMainMenu(from);
+
+    return;
+
+  }
+
+  // ===================================================
   // BACK
-  // =================================================
+  // ===================================================
 
   if (
     text === "back" ||
     text === "पीछे"
   ) {
 
-    users[from].page =
-      Math.max(
-        0,
-        users[from].page - 1
-      );
+    users[from].mode =
+      "main";
 
-    await sendSchemeList(
-      from
-    );
+    await sendMainMenu(from);
 
     return;
+
   }
 
-  // =================================================
-  // HOME
-  // =================================================
+  // ===================================================
+  // SAME MESSAGE REPEAT PROTECTION
+  // ===================================================
+
+  const now =
+    Date.now();
 
   if (
-    text === "home" ||
-    text === "menu" ||
-    text === "main menu"
+    users[from].lastQuestion ===
+      originalText.trim() &&
+    now -
+      users[from].lastMessageTime <
+      5000
   ) {
 
-    await sendMainMenu(
-      from
-    );
-
-    return;
-  }
-
-  // =================================================
-  // DIRECT SCHEME ID
-  // JH-001
-  // =================================================
-
-  if (
-    /^jh-\d+$/i.test(text)
-  ) {
-
-    const schemes =
-      await getSchemes();
-
-    const scheme =
-      schemes.find(
-        item =>
-          item.id.toLowerCase() ===
-          text.toLowerCase()
-      );
-
-    if (scheme) {
-
-      await sendSchemeDetails(
-        from,
-        scheme
-      );
-
-    } else {
-
-      await sendTextMessage(
-        from,
-        getText(
-          from,
-          "schemeNotFound"
-        )
-      );
-
-    }
-
-    return;
-  }
-
-  // =================================================
-  // NUMBER SELECTION
-  // =================================================
-
-  if (
-    /^\d+$/.test(text)
-  ) {
-
-    const number =
-      parseInt(
-        text,
-        10
-      );
-
-    const schemes =
-      await getSchemes();
-
-    if (
-      number >= 1 &&
-      number <= schemes.length
-    ) {
-
-      await sendSchemeDetails(
-        from,
-        schemes[number - 1]
-      );
-
-    } else {
-
-      await sendTextMessage(
-        from,
-        getText(
-          from,
-          "invalidOption"
-        )
-      );
-
-    }
-
-    return;
-  }
-
-  // =================================================
-  // GEMINI AI
-  // =================================================
-
-  const aiReply =
-    await askGemini(
-      from,
+    console.log(
+      "Duplicate message ignored:",
       originalText
     );
 
-  await sendTextMessage(
-    from,
-    `🤖 *JanSevak AI*\n\n${aiReply}`
-  );
+    return;
 
-  return;
+  }
+
+  users[from].lastQuestion =
+    originalText.trim();
+
+  users[from].lastMessageTime =
+    now;
+
+  // ===================================================
+  // MODE BASED PROCESSING
+  // ===================================================
+
+  const mode =
+    users[from].mode;
+
+  // ---------------------------------------------------
+  // AI MODE
+  // ---------------------------------------------------
+
+  if (
+    mode === "ai"
+  ) {
+
+    const aiReply =
+      await askGemini(
+        from,
+        originalText,
+        "ai"
+      );
+
+    await sendControlledAIReply(
+      from,
+      aiReply
+    );
+
+    return;
+
+  }
+
+  // ---------------------------------------------------
+  // SCHEME MODE
+  // ---------------------------------------------------
+
+  if (
+    mode === "schemes"
+  ) {
+
+    const aiReply =
+      await askGemini(
+        from,
+        originalText,
+        "schemes"
+      );
+
+    await sendControlledAIReply(
+      from,
+      aiReply
+    );
+
+    return;
+
+  }
+
+  // ---------------------------------------------------
+  // APPLY MODE
+  // ---------------------------------------------------
+
+  if (
+    mode === "apply"
+  ) {
+
+    const aiReply =
+      await askGemini(
+        from,
+        originalText,
+        "apply"
+      );
+
+    await sendControlledAIReply(
+      from,
+      aiReply
+    );
+
+    return;
+
+  }
+
+  // ---------------------------------------------------
+  // DOCUMENT MODE
+  // ---------------------------------------------------
+
+  if (
+    mode === "documents"
+  ) {
+
+    const aiReply =
+      await askGemini(
+        from,
+        originalText,
+        "documents"
+      );
+
+    await sendControlledAIReply(
+      from,
+      aiReply
+    );
+
+    return;
+
+  }
+
+  // ===================================================
+  // DEFAULT
+  // ===================================================
+
+  await sendMainMenu(from);
+
 }
 
 // =====================================================
-// GEMINI AI FUNCTION
+// CONTROLLED AI REPLY
+// =====================================================
+
+async function sendControlledAIReply(
+  from,
+  answer
+) {
+
+  if (!answer) {
+    return;
+  }
+
+  const cleanAnswer =
+    String(answer).trim();
+
+  // Same answer protection
+  if (
+    users[from].lastAnswer ===
+    cleanAnswer
+  ) {
+
+    console.log(
+      "Duplicate AI answer ignored."
+    );
+
+    return;
+
+  }
+
+  users[from].lastAnswer =
+    cleanAnswer;
+
+  await sendTextMessage(
+    from,
+    cleanAnswer
+  );
+
+  await sendBackButton(
+    from
+  );
+
+}
+
+// =====================================================
+// BACK BUTTON
+// =====================================================
+
+async function sendBackButton(to) {
+
+  const language =
+    users[to]?.language ||
+    "hinglish";
+
+  await sendButtonMessage(
+    to,
+
+    language === "hi"
+      ? "👇 मुख्य मेनू पर वापस जाएँ:"
+      : language === "en"
+      ? "👇 Go back to the main menu:"
+      : "👇 Main menu par wapas jaayein:",
+
+    [
+      {
+        id: "main_back",
+        title:
+          language === "hi"
+            ? "⬅️ मुख्य मेनू"
+            : language === "en"
+            ? "⬅️ Main Menu"
+            : "⬅️ Main Menu"
+      }
+    ]
+  );
+
+}
+
+// =====================================================
+// BUTTON HANDLER
+// =====================================================
+
+async function handleButton(
+  from,
+  buttonId
+) {
+
+  // ===================================================
+  // LANGUAGE
+  // ===================================================
+
+  if (
+    buttonId ===
+    "language_hindi"
+  ) {
+
+    setLanguage(
+      from,
+      "hi"
+    );
+
+    await sendLanguageWelcome(from);
+
+    return;
+
+  }
+
+  if (
+    buttonId ===
+    "language_english"
+  ) {
+
+    setLanguage(
+      from,
+      "en"
+    );
+
+    await sendLanguageWelcome(from);
+
+    return;
+
+  }
+
+  if (
+    buttonId ===
+    "language_hinglish"
+  ) {
+
+    setLanguage(
+      from,
+      "hinglish"
+    );
+
+    await sendLanguageWelcome(from);
+
+    return;
+
+  }
+
+  // ===================================================
+  // MAIN MENU - LANGUAGE
+  // ===================================================
+
+  if (
+    buttonId ===
+    "menu_language"
+  ) {
+
+    users[from].mode =
+      "language";
+
+    await sendLanguageMenu(from);
+
+    return;
+
+  }
+
+  // ===================================================
+  // MAIN MENU - AI
+  // ===================================================
+
+  if (
+    buttonId ===
+    "menu_ai"
+  ) {
+
+    users[from].mode =
+      "ai";
+
+    await sendAIWelcome(from);
+
+    return;
+
+  }
+
+  // ===================================================
+  // MAIN MENU - SCHEMES
+  // ===================================================
+
+  if (
+    buttonId ===
+    "menu_schemes"
+  ) {
+
+    users[from].mode =
+      "schemes";
+
+    users[from].page =
+      0;
+
+    await sendSchemeList(from);
+
+    return;
+
+  }
+
+  // ===================================================
+  // MAIN MENU - APPLY
+  // ===================================================
+
+  if (
+    buttonId ===
+    "menu_apply"
+  ) {
+
+    users[from].mode =
+      "apply";
+
+    await sendApplyWelcome(from);
+
+    return;
+
+  }
+
+  // ===================================================
+  // MAIN MENU - DOCUMENTS
+  // ===================================================
+
+  if (
+    buttonId ===
+    "menu_documents"
+  ) {
+
+    users[from].mode =
+      "documents";
+
+    await sendDocumentsWelcome(from);
+
+    return;
+
+  }
+
+  // ===================================================
+  // MAIN MENU BACK
+  // ===================================================
+
+  if (
+    buttonId ===
+    "main_back"
+  ) {
+
+    users[from].mode =
+      "main";
+
+    await sendMainMenu(from);
+
+    return;
+
+  }
+
+}
+
+// =====================================================
+// AI WELCOME
+// =====================================================
+
+async function sendAIWelcome(to) {
+
+  const language =
+    users[to]?.language ||
+    "hinglish";
+
+  const message =
+    language === "hi"
+      ? `🤖 *AI सहायता*
+
+नमस्ते! 😊
+आप मुझसे सामान्य सवाल पूछ सकते हैं। मैं दोस्ताना तरीके से आपकी मदद करने की कोशिश करूँगा।
+
+👇 अपना सवाल लिखें।`
+
+      : language === "en"
+      ? `🤖 *AI Help*
+
+Hello! 😊
+You can ask me general questions and I'll try to help you in a friendly way.
+
+👇 Type your question.`
+
+      : `🤖 *AI Help*
+
+Hello! 😊
+Aap mujhse normal/general questions pooch sakte hain. Main friendly way mein help karunga.
+
+👇 Apna question type karein.`;
+
+  await sendTextMessage(
+    to,
+    message
+  );
+
+  await sendBackButton(to);
+
+}
+
+// =====================================================
+// APPLY WELCOME
+// =====================================================
+
+async function sendApplyWelcome(to) {
+
+  const language =
+    users[to]?.language ||
+    "hinglish";
+
+  const message =
+    language === "hi"
+      ? `📝 *आवेदन गाइड*
+
+मैं आपको सरकारी योजना के लिए आवेदन करने की प्रक्रिया समझाने में मदद कर सकता हूँ।
+
+👉 कृपया उस योजना का नाम या ID भेजें।
+
+उदाहरण: *JH-001*`
+
+      : language === "en"
+      ? `📝 *Apply Guide*
+
+I can help you understand how to apply for a government scheme.
+
+👉 Please send the scheme name or ID.
+
+Example: *JH-001*`
+
+      : `📝 *Apply Guide*
+
+Main aapko government scheme ke liye apply karne ka process samjhane mein help karunga.
+
+👉 Scheme ka naam ya ID bhejein.
+
+Example: *JH-001*`;
+
+  await sendTextMessage(
+    to,
+    message
+  );
+
+  await sendBackButton(to);
+
+}
+
+// =====================================================
+// DOCUMENT WELCOME
+// =====================================================
+
+async function sendDocumentsWelcome(to) {
+
+  const language =
+    users[to]?.language ||
+    "hinglish";
+
+  const message =
+    language === "hi"
+      ? `📄 *दस्तावेज़*
+
+आप किस सरकारी योजना के दस्तावेज़ के बारे में जानना चाहते हैं?
+
+👉 कृपया योजना का नाम या ID भेजें।
+
+उदाहरण: *JH-001*`
+
+      : language === "en"
+      ? `📄 *Documents*
+
+Which government scheme's documents would you like to know about?
+
+👉 Please send the scheme name or ID.
+
+Example: *JH-001*`
+
+      : `📄 *Documents*
+
+Aap kaun si government scheme ke documents ke baare mein jaana chahte hain?
+
+👉 Scheme ka naam ya ID bhejein.
+
+Example: *JH-001*`;
+
+  await sendTextMessage(
+    to,
+    message
+  );
+
+  await sendBackButton(to);
+
+}
+// =====================================================
+// PART 3 — SCHEMES + AI + WHATSAPP API
+// =====================================================
+
+// =====================================================
+// GOOGLE SHEET — GET SCHEMES
+// =====================================================
+
+async function getSchemes() {
+
+  const url =
+    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(
+      `Google Sheet HTTP error: ${response.status}`
+    );
+  }
+
+  const text = await response.text();
+
+  const json = JSON.parse(
+    text.substring(47).slice(0, -2)
+  );
+
+  const rows = json.table?.rows || [];
+
+  const schemes = [];
+
+  rows.forEach(row => {
+
+    const id =
+      row.c?.[0]?.v;
+
+    const name =
+      row.c?.[1]?.v;
+
+    if (!id || !name) {
+      return;
+    }
+
+    if (
+      String(id)
+        .trim()
+        .toLowerCase() === "id"
+    ) {
+      return;
+    }
+
+    schemes.push({
+
+      id:
+        String(id).trim(),
+
+      name:
+        String(name).trim(),
+
+      category:
+        row.c?.[2]?.v
+          ? String(row.c[2].v).trim()
+          : "Not Available",
+
+      who:
+        row.c?.[3]?.v
+          ? String(row.c[3].v).trim()
+          : "Not Available",
+
+      benefit:
+        row.c?.[4]?.v
+          ? String(row.c[4].v).trim()
+          : "Not Available",
+
+      source:
+        row.c?.[5]?.v
+          ? String(row.c[5].v).trim()
+          : "Not Available"
+
+    });
+
+  });
+
+  return schemes;
+}
+
+
+// =====================================================
+// GEMINI AI
 // =====================================================
 
 async function askGemini(
   from,
-  question
+  question,
+  mode = "general"
 ) {
 
   try {
 
-    // -------------------------------------------------
-    // CHECK API KEY
-    // -------------------------------------------------
-
     if (!ai) {
-
-      console.error(
-        "GEMINI_API_KEY is missing"
-      );
 
       return getText(
         from,
@@ -475,39 +1507,128 @@ async function askGemini(
 
     }
 
-    // -------------------------------------------------
-    // USER LANGUAGE
-    // -------------------------------------------------
-
     const language =
-      users[from]?.language ||
-      "hinglish";
+      users[from]?.language || "hinglish";
 
-    let languageInstruction;
 
-    if (
-      language === "hi"
-    ) {
+    // -------------------------------------------------
+    // LANGUAGE
+    // -------------------------------------------------
 
-      languageInstruction =
-        "Answer in simple Hindi using Devanagari script.";
+    let languageInstruction = "";
 
-    } else if (
-      language === "en"
-    ) {
+    if (language === "hi") {
 
       languageInstruction =
-        "Answer in simple English.";
+        "Reply only in simple Hindi using Devanagari script.";
+
+    } else if (language === "en") {
+
+      languageInstruction =
+        "Reply only in simple English.";
 
     } else {
 
       languageInstruction =
-        "Answer in simple Hinglish using Roman Hindi.";
+        "Reply only in simple Hinglish using Roman Hindi.";
 
     }
 
+
     // -------------------------------------------------
-    // GET GOOGLE SHEET DATA
+    // MODE
+    // -------------------------------------------------
+
+    let modeInstruction = "";
+
+    if (mode === "ai") {
+
+      modeInstruction = `
+You are JanSevak AI Friend.
+
+The user clicked AI Help.
+
+You can have friendly and useful conversations.
+
+You may answer:
+- General questions
+- Study questions
+- Technology questions
+- Daily life questions
+- Government related questions
+- Other normal questions
+
+Be friendly, natural and respectful.
+
+Do NOT pretend to be a government officer.
+
+Keep answers reasonably short for WhatsApp.
+`;
+
+    } else if (mode === "schemes") {
+
+      modeInstruction = `
+The user is currently inside the GOVERNMENT SCHEMES section.
+
+IMPORTANT:
+Only talk about government schemes.
+
+You may explain:
+- Scheme name
+- Eligibility
+- Benefits
+- Who can apply
+- Documents
+- Basic scheme information
+
+Do NOT answer unrelated questions.
+
+If the user asks something unrelated, politely say that this section is only for government schemes and ask them to use AI Help for general questions.
+`;
+
+    } else if (mode === "apply") {
+
+      modeInstruction = `
+The user is currently inside APPLY GUIDE.
+
+IMPORTANT:
+Only talk about applying for government schemes.
+
+You may explain:
+- How to apply
+- Where to apply
+- Application steps
+- Basic application process
+- Documents required for application
+
+Do NOT answer unrelated questions.
+
+If the user asks something unrelated, politely say that this section is only for application guidance.
+`;
+
+    } else if (mode === "documents") {
+
+      modeInstruction = `
+The user is currently inside DOCUMENTS.
+
+IMPORTANT:
+Only talk about documents required for government schemes.
+
+First understand which scheme the user wants.
+
+You can explain:
+- Required documents
+- Document preparation
+- Basic document requirements
+
+Do NOT answer unrelated questions.
+`;
+
+    }
+
+
+    // -------------------------------------------------
+    // GET SCHEMES
     // -------------------------------------------------
 
     let schemes = [];
@@ -517,19 +1638,18 @@ async function askGemini(
       schemes =
         await getSchemes();
 
-    } catch (sheetError) {
+    } catch (error) {
 
       console.error(
         "Google Sheet error:",
-        sheetError
+        error
       );
-
-      schemes = [];
 
     }
 
+
     // -------------------------------------------------
-    // SCHEME CONTEXT
+    // SCHEME DATA
     // -------------------------------------------------
 
     const schemeContext =
@@ -545,271 +1665,90 @@ Official Source: ${scheme.source}`
         )
         .join("\n\n");
 
+
     // -------------------------------------------------
-    // PROMPT
+    // DOCUMENT MODE
+    // -------------------------------------------------
+
+    if (mode === "documents") {
+
+      const documentPrompt = `
+
+You are JanSevak Documents Assistant.
+
+${languageInstruction}
+
+${modeInstruction}
+
+The user said:
+
+${question}
+
+AVAILABLE SCHEMES:
+
+${schemeContext || "No scheme data available."}
+
+If the user has not clearly mentioned a scheme:
+
+Ask:
+
+"Which scheme's documents would you like to know about?"
+
+Then wait for the user's answer.
+
+Never invent document requirements.
+
+If information is not available in the provided data,
+tell the user to verify it from the official government source.
+
+`;
+
+      return await generateGeminiResponse(
+        from,
+        documentPrompt
+      );
+
+    }
+
+
+    // -------------------------------------------------
+    // NORMAL AI PROMPT
     // -------------------------------------------------
 
     const prompt = `
-You are "JanSevak AI", a citizen-support assistant for India.
 
-Your job is to help citizens understand government schemes,
-public services, eligibility, documents and application processes.
+You are JanSevak AI.
 
-USER LANGUAGE:
 ${languageInstruction}
+
+${modeInstruction}
 
 IMPORTANT RULES:
 
-1. Give simple and easy answers.
-2. Never claim that JanSevak can approve an application.
-3. Never invent a government scheme.
-4. Never invent an amount, eligibility rule or document requirement.
-5. For scheme questions, prefer the Google Sheet data provided below.
-6. If the provided data does not contain the answer, clearly tell the citizen to verify it from the official government department or official portal.
-7. Do not present guesses as facts.
-8. If the user asks a normal general question, answer normally.
-9. Keep WhatsApp answers reasonably short.
-10. Use emojis when useful.
-11. Follow the user's selected language.
-12. Be helpful and respectful.
-13. If the user only says hello or hi, respond naturally and briefly.
+1. Never invent government schemes.
+2. Never invent eligibility.
+3. Never invent benefits.
+4. Never invent document requirements.
+5. Use the Google Sheet data when discussing schemes.
+6. If information is unavailable, clearly say so.
+7. Do not claim JanSevak can approve applications.
+8. Keep WhatsApp replies concise.
+9. Be friendly and helpful.
+10. Always use the user's selected language.
 
-AVAILABLE JANSEVAK SCHEME DATA:
+AVAILABLE SCHEME DATA:
 
-${schemeContext || "No scheme data is currently available."}
+${schemeContext || "No scheme data available."}
 
-USER QUESTION:
+USER MESSAGE:
 
 ${question}
+
 `;
 
-    console.log(
-      "Sending question to Gemini:",
-      question
-    );
-
-    // -------------------------------------------------
-    // GEMINI MODELS
-    // -------------------------------------------------
-
-    const models = [
-
-      "gemini-3.6-flash",
-
-      "gemini-3.5-flash-lite"
-
-    ];
-
-    // -------------------------------------------------
-    // RETRY SETTINGS
-    // -------------------------------------------------
-
-    const maxRetries = 2;
-
-    // -------------------------------------------------
-    // TRY MODELS
-    // -------------------------------------------------
-
-    for (
-      const model of models
-    ) {
-
-      for (
-        let attempt = 1;
-        attempt <= maxRetries;
-        attempt++
-      ) {
-
-        try {
-
-          console.log(
-            `Gemini request: model=${model}, attempt=${attempt}`
-          );
-
-          const response =
-            await ai.models.generateContent({
-
-              model:
-                model,
-
-              contents:
-                prompt
-
-            });
-
-          const answer =
-            response?.text;
-
-          // -------------------------------------------------
-          // EMPTY RESPONSE
-          // -------------------------------------------------
-
-          if (
-            !answer ||
-            !answer.trim()
-          ) {
-
-            throw new Error(
-              "Gemini returned empty response"
-            );
-
-          }
-
-          console.log(
-            `Gemini response successful using ${model}`
-          );
-
-          console.log(
-            "Gemini response:",
-            answer
-          );
-
-          return answer.trim();
-
-        } catch (error) {
-
-          const errorMessage =
-            error?.message ||
-            String(error);
-
-          const status =
-            error?.status ||
-            error?.code ||
-            "";
-
-          console.error(
-            `Gemini error | model=${model} | attempt=${attempt} | status=${status}`
-          );
-
-          console.error(
-            errorMessage
-          );
-
-          // -------------------------------------------------
-          // TEMPORARY ERROR
-          // -------------------------------------------------
-
-          const temporaryError =
-            status === 429 ||
-            status === 500 ||
-            status === 502 ||
-            status === 503 ||
-            status === 504 ||
-            errorMessage.includes(
-              "high demand"
-            ) ||
-            errorMessage.includes(
-              "UNAVAILABLE"
-            ) ||
-            errorMessage.includes(
-              "overloaded"
-            ) ||
-            errorMessage.includes(
-              "temporarily"
-            );
-
-          // -------------------------------------------------
-          // RETRY TEMPORARY ERROR
-          // -------------------------------------------------
-
-          if (
-            temporaryError &&
-            attempt < maxRetries
-          ) {
-
-            const delay =
-              attempt * 2000;
-
-            console.log(
-              `Gemini temporarily unavailable. Retrying in ${delay}ms...`
-            );
-
-            await new Promise(
-              resolve =>
-                setTimeout(
-                  resolve,
-                  delay
-                )
-            );
-
-            continue;
-          }
-
-          // -------------------------------------------------
-          // TRY NEXT MODEL
-          // -------------------------------------------------
-
-          if (
-            temporaryError
-          ) {
-
-            console.log(
-              `Model ${model} unavailable. Trying next model...`
-            );
-
-            break;
-          }
-
-          // -------------------------------------------------
-          // AUTH ERROR
-          // -------------------------------------------------
-
-          if (
-            status === 401 ||
-            status === 403
-          ) {
-
-            console.error(
-              "Gemini API key or permission problem."
-            );
-
-            return getText(
-              from,
-              "aiUnavailable"
-            );
-
-          }
-
-          // -------------------------------------------------
-          // MODEL NOT FOUND
-          // -------------------------------------------------
-
-          if (
-            status === 404
-          ) {
-
-            console.error(
-              `Model ${model} is not available. Trying next model...`
-            );
-
-            break;
-          }
-
-          // -------------------------------------------------
-          // OTHER ERROR
-          // -------------------------------------------------
-
-          console.error(
-            "Non-temporary Gemini error:",
-            error
-          );
-
-          break;
-        }
-      }
-    }
-
-    // -------------------------------------------------
-    // ALL MODELS FAILED
-    // -------------------------------------------------
-
-    console.error(
-      "All Gemini models failed."
-    );
-
-    return getText(
+    return await generateGeminiResponse(
       from,
-      "aiUnavailable"
+      prompt
     );
 
   } catch (error) {
@@ -827,869 +1766,217 @@ ${question}
   }
 }
 
+
 // =====================================================
-// BUTTON HANDLER
+// GEMINI REQUEST
 // =====================================================
 
-async function handleButton(
+async function generateGeminiResponse(
   from,
-  buttonId
+  prompt
 ) {
 
-  // Language
-  if (
-    buttonId ===
-    "language_hindi"
-  ) {
+  const models = [
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite"
+  ];
 
-    setLanguage(
-      from,
-      "hi"
-    );
+  const maxRetries = 2;
 
-    await sendMainMenu(
-      from
-    );
+  for (const model of models) {
 
-    return;
-  }
+    for (
+      let attempt = 1;
+      attempt <= maxRetries;
+      attempt++
+    ) {
 
-  if (
-    buttonId ===
-    "language_english"
-  ) {
+      try {
 
-    setLanguage(
-      from,
-      "en"
-    );
+        console.log(
+          `Gemini request: ${model} attempt ${attempt}`
+        );
 
-    await sendMainMenu(
-      from
-    );
+        const response =
+          await ai.models.generateContent({
 
-    return;
-  }
+            model,
 
-  if (
-    buttonId ===
-    "language_hinglish"
-  ) {
+            contents:
+              prompt
 
-    setLanguage(
-      from,
-      "hinglish"
-    );
+          });
 
-    await sendMainMenu(
-      from
-    );
+        const answer =
+          response?.text;
 
-    return;
-  }
+        if (
+          !answer ||
+          !answer.trim()
+        ) {
 
-  // Main menu
-  if (
-    buttonId ===
-    "menu_schemes"
-  ) {
+          throw new Error(
+            "Gemini returned empty response"
+          );
 
-    users[from].page = 0;
+        }
 
-    await sendSchemeList(
-      from
-    );
+        console.log(
+          "Gemini response successful"
+        );
 
-    return;
-  }
+        return answer.trim();
 
-  if (
-    buttonId ===
-    "menu_language"
-  ) {
+      } catch (error) {
 
-    await sendLanguageMenu(
-      from
-    );
+        const message =
+          error?.message ||
+          String(error);
 
-    return;
-  }
+        const status =
+          error?.status ||
+          error?.code ||
+          "";
 
-  if (
-    buttonId ===
-    "menu_home"
-  ) {
+        console.error(
+          `Gemini error: ${message}`
+        );
 
-    await sendMainMenu(
-      from
-    );
 
-    return;
-  }
+        const temporary =
+          status === 429 ||
+          status === 500 ||
+          status === 502 ||
+          status === 503 ||
+          status === 504 ||
+          message.includes("UNAVAILABLE") ||
+          message.includes("overloaded") ||
+          message.includes("temporarily");
 
-  // Scheme navigation
-  if (
-    buttonId ===
-    "schemes_next"
-  ) {
 
-    users[from].page++;
+        if (
+          temporary &&
+          attempt < maxRetries
+        ) {
 
-    await sendSchemeList(
-      from
-    );
+          await new Promise(
+            resolve =>
+              setTimeout(
+                resolve,
+                attempt * 2000
+              )
+          );
 
-    return;
-  }
+          continue;
 
-  if (
-    buttonId ===
-    "schemes_previous"
-  ) {
+        }
 
-    users[from].page =
-      Math.max(
-        0,
-        users[from].page - 1
-      );
 
-    await sendSchemeList(
-      from
-    );
+        if (
+          temporary ||
+          status === 404
+        ) {
 
-    return;
-  }
+          break;
 
-  // Details
-  if (
-    buttonId ===
-    "details_back"
-  ) {
+        }
 
-    await sendSchemeList(
-      from
-    );
 
-    return;
-  }
+        if (
+          status === 401 ||
+          status === 403
+        ) {
 
-  if (
-    buttonId ===
-    "details_home"
-  ) {
+          return getText(
+            from,
+            "aiUnavailable"
+          );
 
-    await sendMainMenu(
-      from
-    );
+        }
 
-    return;
-  }
+        break;
 
-  if (
-    buttonId ===
-    "details_language"
-  ) {
-
-    await sendLanguageMenu(
-      from
-    );
-
-    return;
-  }
-}
-
-// =====================================================
-// LIST SELECTION
-// =====================================================
-
-async function handleListSelection(
-  from,
-  listId
-) {
-
-  // Scheme
-  if (
-    listId.startsWith(
-      "scheme_"
-    )
-  ) {
-
-    const schemeId =
-      listId.replace(
-        "scheme_",
-        ""
-      );
-
-    const schemes =
-      await getSchemes();
-
-    const scheme =
-      schemes.find(
-        item =>
-          item.id ===
-          schemeId
-      );
-
-    if (scheme) {
-
-      await sendSchemeDetails(
-        from,
-        scheme
-      );
-
-    } else {
-
-      await sendTextMessage(
-        from,
-        getText(
-          from,
-          "schemeNotFound"
-        )
-      );
+      }
 
     }
 
-    return;
   }
 
-  // Next
-  if (
-    listId ===
-    "scheme_next"
-  ) {
 
-    users[from].page++;
-
-    await sendSchemeList(
-      from
-    );
-
-    return;
-  }
-
-  // Previous
-  if (
-    listId ===
-    "scheme_previous"
-  ) {
-
-    users[from].page =
-      Math.max(
-        0,
-        users[from].page - 1
-      );
-
-    await sendSchemeList(
-      from
-    );
-
-    return;
-  }
-}
-
-// =====================================================
-// LANGUAGE MEMORY
-// =====================================================
-
-function setLanguage(
-  from,
-  language
-) {
-
-  if (!users[from]) {
-
-    users[from] = {
-
-      language,
-
-      page: 0
-
-    };
-
-  } else {
-
-    users[from].language =
-      language;
-
-  }
-}
-
-// =====================================================
-// LANGUAGE MENU
-// =====================================================
-
-async function sendLanguageMenu(
-  to
-) {
-
-  await sendButtonMessage(
-    to,
-
-`👋 *Welcome to JanSevak!*
-
-🌐 Please select your language
-🌐 अपनी भाषा चुनें
-
-👇 Language choose karein:`,
-
-    [
-      {
-        id:
-          "language_hindi",
-
-        title:
-          "🇮🇳 हिंदी"
-      },
-
-      {
-        id:
-          "language_english",
-
-        title:
-          "🇬🇧 English"
-      },
-
-      {
-        id:
-          "language_hinglish",
-
-        title:
-          "😎 Hinglish"
-      }
-    ]
+  return getText(
+    from,
+    "aiUnavailable"
   );
+
 }
 
+
 // =====================================================
-// MAIN MENU
+// SEND WHATSAPP TEXT
 // =====================================================
 
-async function sendMainMenu(
-  to
+async function sendTextMessage(
+  to,
+  body
 ) {
-
-  const language =
-    users[to]?.language ||
-    "hinglish";
-
-  let message = "";
-
-  if (
-    language === "hi"
-  ) {
-
-    message =
-`👋 *जनसेवक में आपका स्वागत है!*
-
-मैं आपको सरकारी योजनाओं और सार्वजनिक सेवाओं की जानकारी प्राप्त करने में मदद कर सकता हूँ।
-
-🤖 आप मुझसे सीधे कोई भी सवाल भी पूछ सकते हैं।
-
-उदाहरण:
-"किसान के लिए कौन सी योजना है?"
-
-👇 नीचे से विकल्प चुनें:`;
-
-  } else if (
-    language === "en"
-  ) {
-
-    message =
-`👋 *Welcome to JanSevak!*
-
-I can help you find information about government schemes and public services.
-
-🤖 You can also ask me questions directly.
-
-Example:
-"Which scheme is available for farmers?"
-
-👇 Choose an option below:`;
-
-  } else {
-
-    message =
-`👋 *JanSevak mein aapka swagat hai!*
-
-Main aapko government schemes aur public services ki information dhoondhne mein help kar sakta hoon.
-
-🤖 Aap mujhse directly question bhi pooch sakte hain.
-
-Example:
-"Kisan ke liye kaun si scheme hai?"
-
-👇 Neeche se option choose karein:`;
-  }
-
-  await sendButtonMessage(
-    to,
-    message,
-    [
-      {
-        id:
-          "menu_schemes",
-
-        title:
-          "📋 Schemes"
-      },
-
-      {
-        id:
-          "menu_language",
-
-        title:
-          "🌐 Language"
-      },
-
-      {
-        id:
-          "menu_home",
-
-        title:
-          "🏠 Home"
-      }
-    ]
-  );
-}
-
-// =====================================================
-// GOOGLE SHEET
-// =====================================================
-
-async function getSchemes() {
 
   const url =
-    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}`;
+    `https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages`;
 
   const response =
-    await fetch(url);
+    await fetch(
+      url,
+      {
 
-  if (!response.ok) {
+        method:
+          "POST",
 
-    throw new Error(
-      `Google Sheet HTTP error: ${response.status}`
-    );
+        headers: {
 
-  }
+          Authorization:
+            `Bearer ${WHATSAPP_TOKEN}`,
 
-  const text =
-    await response.text();
+          "Content-Type":
+            "application/json"
 
-  const json =
-    JSON.parse(
-      text
-        .substring(47)
-        .slice(0, -2)
-    );
+        },
 
-  const rows =
-    json.table?.rows ||
-    [];
+        body:
+          JSON.stringify({
 
-  const schemes = [];
+            messaging_product:
+              "whatsapp",
 
-  rows.forEach(
-    row => {
+            to,
 
-      const id =
-        row.c?.[0]?.v;
+            type:
+              "text",
 
-      const name =
-        row.c?.[1]?.v;
+            text: {
 
-      // Ignore empty row
-      if (
-        !id ||
-        !name
-      ) {
+              body
 
-        return;
+            }
+
+          })
 
       }
+    );
 
-      // Ignore ID header
-      if (
-        String(id)
-          .trim()
-          .toLowerCase() ===
-        "id"
-      ) {
 
-        return;
+  const data =
+    await response.json();
 
-      }
-
-      schemes.push({
-
-        id:
-          String(id)
-            .trim(),
-
-        name:
-          String(name)
-            .trim(),
-
-        category:
-          row.c?.[2]?.v
-            ? String(
-                row.c[2].v
-              ).trim()
-            : "Not Available",
-
-        who:
-          row.c?.[3]?.v
-            ? String(
-                row.c[3].v
-              ).trim()
-            : "Not Available",
-
-        benefit:
-          row.c?.[4]?.v
-            ? String(
-                row.c[4].v
-              ).trim()
-            : "Not Available",
-
-        source:
-          row.c?.[5]?.v
-            ? String(
-                row.c[5].v
-              ).trim()
-            : "Not Available"
-
-      });
-
-    }
+  console.log(
+    "WhatsApp text response:",
+    data
   );
 
-  return schemes;
 }
 
-// =====================================================
-// SCHEME LIST
-// =====================================================
-
-async function sendSchemeList(
-  to
-) {
-
-  const schemes =
-    await getSchemes();
-
-  if (
-    !schemes.length
-  ) {
-
-    await sendTextMessage(
-      to,
-      getText(
-        to,
-        "noSchemes"
-      )
-    );
-
-    return;
-  }
-
-  const language =
-    users[to]?.language ||
-    "hinglish";
-
-  const perPage = 10;
-
-  const totalPages =
-    Math.ceil(
-      schemes.length /
-      perPage
-    );
-
-  let page =
-    users[to]?.page ||
-    0;
-
-  if (
-    page < 0
-  ) {
-
-    page = 0;
-
-  }
-
-  if (
-    page >= totalPages
-  ) {
-
-    page =
-      totalPages - 1;
-
-  }
-
-  users[to].page =
-    page;
-
-  const start =
-    page * perPage;
-
-  const currentSchemes =
-    schemes.slice(
-      start,
-      start + perPage
-    );
-
-  let body = "";
-
-  if (
-    language === "hi"
-  ) {
-
-    body =
-`📋 *सरकारी योजनाएँ*
-
-कृपया अपनी योजना चुनें 👇
-
-📄 पेज ${page + 1} / ${totalPages}`;
-
-  } else if (
-    language === "en"
-  ) {
-
-    body =
-`📋 *Government Schemes*
-
-Please select a scheme 👇
-
-📄 Page ${page + 1} / ${totalPages}`;
-
-  } else {
-
-    body =
-`📋 *Government Schemes*
-
-Apni scheme select karein 👇
-
-📄 Page ${page + 1} / ${totalPages}`;
-
-  }
-
-  const rows =
-    currentSchemes.map(
-      scheme => ({
-
-        id:
-          `scheme_${scheme.id}`,
-
-        title:
-          `${scheme.id} - ${scheme.name}`
-            .substring(
-              0,
-              24
-            ),
-
-        description:
-          `${scheme.category}`
-            .substring(
-              0,
-              72
-            )
-
-      })
-    );
-
-  // Previous
-  if (
-    page > 0
-  ) {
-
-    rows.push({
-
-      id:
-        "scheme_previous",
-
-      title:
-        language === "hi"
-          ? "⬅️ पिछला पेज"
-          : language === "en"
-          ? "⬅️ Previous Page"
-          : "⬅️ Pichhla Page",
-
-      description:
-        language === "hi"
-          ? "पिछली योजनाएँ देखें"
-          : language === "en"
-          ? "View previous schemes"
-          : "Pichhli schemes dekhein"
-
-    });
-
-  }
-
-  // Next
-  if (
-    page <
-    totalPages - 1
-  ) {
-
-    rows.push({
-
-      id:
-        "scheme_next",
-
-      title:
-        language === "hi"
-          ? "➡️ अगला पेज"
-          : language === "en"
-          ? "➡️ Next Page"
-          : "➡️ Agla Page",
-
-      description:
-        language === "hi"
-          ? "अगली योजनाएँ देखें"
-          : language === "en"
-          ? "View more schemes"
-          : "Agli schemes dekhein"
-
-    });
-
-  }
-
-  await sendListMessage(
-    to,
-    body,
-    language === "hi"
-      ? "योजना चुनें"
-      : language === "en"
-      ? "Select Scheme"
-      : "Scheme Choose Karein",
-    rows
-  );
-}
 
 // =====================================================
-// SCHEME DETAILS
-// =====================================================
-
-async function sendSchemeDetails(
-  to,
-  scheme
-) {
-
-  const language =
-    users[to]?.language ||
-    "hinglish";
-
-  let message = "";
-
-  if (
-    language === "hi"
-  ) {
-
-    message =
-`📋 *${scheme.name}*
-
-🆔 *ID:* ${scheme.id}
-
-📂 *श्रेणी:*
-${scheme.category}
-
-👥 *किसके लिए है:*
-${scheme.who}
-
-💰 *मुख्य लाभ / उद्देश्य:*
-${scheme.benefit}
-
-🔗 *आधिकारिक स्रोत:*
-${scheme.source}`;
-
-  } else if (
-    language === "en"
-  ) {
-
-    message =
-`📋 *${scheme.name}*
-
-🆔 *ID:* ${scheme.id}
-
-📂 *Category:*
-${scheme.category}
-
-👥 *Who is it for:*
-${scheme.who}
-
-💰 *Main Benefit / Purpose:*
-${scheme.benefit}
-
-🔗 *Official Source:*
-${scheme.source}`;
-
-  } else {
-
-    message =
-`📋 *${scheme.name}*
-
-🆔 *ID:* ${scheme.id}
-
-📂 *Category:*
-${scheme.category}
-
-👥 *Kiske liye hai:*
-${scheme.who}
-
-💰 *Main Benefit / Purpose:*
-${scheme.benefit}
-
-🔗 *Official Source:*
-${scheme.source}`;
-
-  }
-
-  await sendTextMessage(
-    to,
-    message
-  );
-
-  await sendButtonMessage(
-    to,
-
-    language === "hi"
-      ? "👇 आगे क्या करना चाहते हैं?"
-      : language === "en"
-      ? "👇 What would you like to do next?"
-      : "👇 Ab aap kya karna chahte hain?",
-
-    [
-
-      {
-        id:
-          "details_back",
-
-        title:
-          language === "hi"
-            ? "⬅️ योजनाएँ"
-            : "⬅️ Schemes"
-      },
-
-      {
-        id:
-          "details_language",
-
-        title:
-          "🌐 Language"
-      },
-
-      {
-        id:
-          "details_home",
-
-        title:
-          "🏠 Home"
-      }
-
-    ]
-  );
-}
-
-// =====================================================
-// SEND BUTTON MESSAGE
+// SEND WHATSAPP BUTTON MESSAGE
 // =====================================================
 
 async function sendButtonMessage(
@@ -1749,32 +2036,27 @@ async function sendButtonMessage(
 
                 buttons:
                   buttons
-                    .slice(
-                      0,
-                      3
-                    )
-                    .map(
-                      button => ({
+                    .slice(0, 3)
+                    .map(button => ({
 
-                        type:
-                          "reply",
+                      type:
+                        "reply",
 
-                        reply: {
+                      reply: {
 
-                          id:
-                            button.id,
+                        id:
+                          button.id,
 
-                          title:
-                            button.title
-                              .substring(
-                                0,
-                                20
-                              )
+                        title:
+                          button.title
+                            .substring(
+                              0,
+                              20
+                            )
 
-                        }
+                      }
 
-                      })
-                    )
+                    }))
 
               }
 
@@ -1785,17 +2067,20 @@ async function sendButtonMessage(
       }
     );
 
+
   const data =
     await response.json();
 
   console.log(
-    "Button API response:",
+    "WhatsApp button response:",
     data
   );
+
 }
 
+
 // =====================================================
-// SEND LIST MESSAGE
+// SEND WHATSAPP LIST
 // =====================================================
 
 async function sendListMessage(
@@ -1886,78 +2171,20 @@ async function sendListMessage(
       }
     );
 
-  const data =
-    await response.json();
-
-  console.log(
-    "List API response:",
-    data
-  );
-}
-
-// =====================================================
-// SEND TEXT MESSAGE
-// =====================================================
-
-async function sendTextMessage(
-  to,
-  body
-) {
-
-  const url =
-    `https://graph.facebook.com/v26.0/${PHONE_NUMBER_ID}/messages`;
-
-  const response =
-    await fetch(
-      url,
-      {
-
-        method:
-          "POST",
-
-        headers: {
-
-          Authorization:
-            `Bearer ${WHATSAPP_TOKEN}`,
-
-          "Content-Type":
-            "application/json"
-
-        },
-
-        body:
-          JSON.stringify({
-
-            messaging_product:
-              "whatsapp",
-
-            to,
-
-            type:
-              "text",
-
-            text: {
-
-              body
-
-            }
-
-          })
-
-      }
-    );
 
   const data =
     await response.json();
 
   console.log(
-    "Text API response:",
+    "WhatsApp list response:",
     data
   );
+
 }
 
+
 // =====================================================
-// MULTI LANGUAGE TEXT
+// LANGUAGE TEXT
 // =====================================================
 
 function getText(
@@ -1969,20 +2196,22 @@ function getText(
     users[from]?.language ||
     "hinglish";
 
+
   const texts = {
 
     schemeNotFound: {
 
       hi:
-        "❌ माफ कीजिए, यह योजना नहीं मिली।\n\nउदाहरण: JH-001",
+        "❌ माफ कीजिए, यह योजना नहीं मिली।",
 
       en:
-        "❌ Sorry, this scheme was not found.\n\nExample: JH-001",
+        "❌ Sorry, this scheme was not found.",
 
       hinglish:
-        "❌ Sorry, ye scheme nahi mili.\n\nExample: JH-001"
+        "❌ Sorry, ye scheme nahi mili."
 
     },
+
 
     invalidOption: {
 
@@ -1997,18 +2226,6 @@ function getText(
 
     },
 
-    unknown: {
-
-      hi:
-        "🙏 मैं आपका संदेश समझ नहीं पाया।",
-
-      en:
-        "🙏 I couldn't understand your message.",
-
-      hinglish:
-        "🙏 Main aapka message samajh nahi paya."
-
-    },
 
     noSchemes: {
 
@@ -2023,27 +2240,45 @@ function getText(
 
     },
 
+
     aiUnavailable: {
 
       hi:
-        "⚠️ AI सेवा अभी अस्थायी रूप से उपलब्ध नहीं है। कृपया थोड़ी देर बाद दोबारा प्रयास करें।",
+        "⚠️ AI सेवा अभी उपलब्ध नहीं है। कृपया थोड़ी देर बाद प्रयास करें।",
 
       en:
-        "⚠️ AI service is temporarily unavailable. Please try again later.",
+        "⚠️ AI service is currently unavailable. Please try again later.",
 
       hinglish:
-        "⚠️ AI service abhi temporarily available nahi hai. Thodi der baad dobara try karein."
+        "⚠️ AI service abhi available nahi hai. Thodi der baad try karein."
+
+    },
+
+
+    unknown: {
+
+      hi:
+        "🙏 मैं आपका संदेश समझ नहीं पाया। कृपया नीचे दिए गए विकल्पों में से चुनें।",
+
+      en:
+        "🙏 I couldn't understand your message. Please choose one of the options below.",
+
+      hinglish:
+        "🙏 Main aapka message samajh nahi paya. Neeche diye options me se choose karein."
 
     }
 
   };
+
 
   return (
     texts[key]?.[language] ||
     texts[key]?.hinglish ||
     "Something went wrong."
   );
+
 }
+
 
 // =====================================================
 // HEALTH CHECK
@@ -2074,6 +2309,7 @@ app.get(
   }
 );
 
+
 // =====================================================
 // HOME
 // =====================================================
@@ -2089,8 +2325,9 @@ app.get(
   }
 );
 
+
 // =====================================================
-// START SERVER
+// SERVER START
 // =====================================================
 
 app.listen(
@@ -2098,7 +2335,7 @@ app.listen(
   () => {
 
     console.log(
-      `JanSevak server running on port ${PORT}`
+      `🇮🇳 JanSevak server running on port ${PORT}`
     );
 
     console.log(
