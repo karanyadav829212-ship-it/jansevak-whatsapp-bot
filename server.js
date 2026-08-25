@@ -171,9 +171,7 @@ async function handleTextMessage(from, originalText) {
   // THANK YOU
   // ===================================================
 
-  if (
-    isThankYou(text)
-  ) {
+  if (isThankYou(text)) {
     await sendTextMessage(
       from,
       getText(from, "thankYou")
@@ -1308,5 +1306,8 @@ app.listen(PORT, "0.0.0.0", () => {
 
 path = Path("/mnt/data/server.js")
 path.write_text(code, encoding="utf-8")
+
 print(f"Created: {path}")
 print(f"Lines: {len(code.splitlines())}")
+print("First line:", code.splitlines()[0])
+print("Last line:", code.splitlines()[-1])
