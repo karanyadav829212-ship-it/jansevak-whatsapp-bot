@@ -1164,11 +1164,23 @@ ${question}
       `Gemini request | mode=${mode} | question=${question}`
     );
 
-    const response =
-      await ai.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: prompt
-      });
+let response;
+
+for (let i = 0; i < 3; i++) {
+  try {
+    response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: prompt
+    });
+    break;
+  } catch (err) {
+    if (err?.status === 503 && i < 2) {
+      await new Promise(r => setTimeout(r, 2000));
+      continue;
+    }
+    throw err;
+  }
+}    
 
     const answer =
       response?.text;
