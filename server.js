@@ -63,12 +63,17 @@ const GEMINI_MODEL =
 //
 // =====================================================
 
-const SHEET_ID =
-  "1GeXblMObkNM-KDmMhQPY4ZA8Gv180L_eqb7aNteDu88";
+// =====================================================
+// GOOGLE SHEETS (3 LANGUAGE DATABASE)
+// =====================================================
 
-const SHEET_NAME =
-  "Sheet1";
+const SHEET_NAME = "Sheet1";
 
+const SHEETS = {
+  en: "1GeXblMObkNM-KDmMhQPY4ZA8Gv180L_eqb7aNteDu88",
+  hi: "1gNAmNZy3R_AS36E2v6hxosajGd32Typ1DrrDsTJJXFQ",
+  hinglish: "1yMC6M0kdCmFUA8gplbOSxrYesoLLmfwfcTbcQx4Ldps"
+};
 
 // =====================================================
 // USER SESSIONS
